@@ -273,15 +273,14 @@ init_db()
 
 
 @app.post("/webhook")
-def webhook(request: Request, background_tasks: BackgroundTasks):
-    background_tasks.add_task(handle_webhook, request)
+async def webhook(request: Request, background_tasks: BackgroundTasks):
+    data = await request.json()
+    background_tasks.add_task(handle_webhook, data)
     return {"status": "received"}
 
-
-def handle_webhook(request: Request):
+def handle_webhook(data):
     try:
-        json_data = json.loads(request.body())
-        msg = json_data.get("message", {})
+        msg = data.get("message", {})
         text = msg.get("text", "").strip()
         user = msg.get("from", {}).get("first_name", "Unknown")
 
@@ -290,6 +289,7 @@ def handle_webhook(request: Request):
 
     except Exception as e:
         print("Webhook error:", e)
+
 
 
 def log_duty_status_from_message(linewalker, message, user):
