@@ -227,6 +227,32 @@ def send_alert(payload: AlertPayload):
             "detail": f"Exception while sending alert: {str(e)}"
         }
 
+@app.get("/receive")
+def get_received_logs(limit: int = 100):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("""
+            SELECT timestamp, linewalker, message, user 
+            FROM received_messages 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        """, (limit,))
+        rows = c.fetchall()
+        conn.close()
+
+        return [
+            {
+                "User": row[3],  # user
+                "Message": row[2],  # message
+                "Time": row[0].split(" ")[1] if " " in row[0] else row[0]  # extract HH:MM:SS
+            }
+            for row in rows
+        ]
+
+    except Exception as e:
+        print(f"[DB Error] {e}")
+        return {"error": str(e)}
 
 # ========== Logging ==========
 def init_db():
@@ -519,6 +545,7 @@ def edit_linewalkers(data: List[LineWalkerItem]):  # Optional: add `, auth=Depen
 def refresh():
     refresh_linewalkers()
     return {"status": "refreshed"}
+
 
 
 @app.get("/ping")
