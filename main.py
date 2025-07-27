@@ -452,7 +452,7 @@ def get_grouping_chart(by: str = "section"):
         valid_fields = {
             "section": "section",
             "linewalker": "linewalker",
-            "fibreline": "fibreline"
+    
         }
         if by not in valid_fields:
             raise HTTPException(status_code=400, detail=f"Invalid group type. Use one of: {', '.join(valid_fields.keys())}")
