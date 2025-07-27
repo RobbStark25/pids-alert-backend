@@ -169,25 +169,37 @@ def get_linewalker_by_ch(ch):
 @app.get("/calculate_ch_for_section")
 def calculate_ch_for_section(section: str, od: float):
     print(f"[CH Lookup] Section={section}, OD={od}")
-    
+
     df = section_data.get(section)
     if df is None:
         return {"error": f"Section '{section}' not found."}
 
     ch_matches = interpolate_ch(df, od)
 
-    if len(ch_matches) > 1:
+    if ch_matches is None:
+        return {"error": "OD out of range."}
+
+    # If interpolate_ch returns a single float
+    if isinstance(ch_matches, float) or isinstance(ch_matches, int):
+        lw = get_linewalker_by_ch(ch_matches)
+        if not lw:
+            return {"error": "Line walker not found for CH."}
+        return {"ch": round(ch_matches, 3), "line_walker": lw}
+
+    # If interpolate_ch returns a list of CHs
+    if isinstance(ch_matches, list) and len(ch_matches) > 1:
         print(f"[Multiple CHs] Found: {ch_matches}")
         return ch_matches
 
-    if len(ch_matches) == 1:
+    # If it's a list with one item
+    if isinstance(ch_matches, list) and len(ch_matches) == 1:
         ch_val = ch_matches[0]
         lw = get_linewalker_by_ch(ch_val)
         if not lw:
             return {"error": "Line walker not found for CH."}
         return {"ch": ch_val, "line_walker": lw}
 
-    return {"error": "OD out of range."}
+    return {"error": "Unexpected result from interpolation."}
 
 
 
