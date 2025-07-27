@@ -20,9 +20,10 @@ import openpyxl
 from fastapi import Depends
 import csv
 from io import BytesIO
+from fastapi import APIRouter
+from config import settings 
 app = FastAPI()
 sent_count = 0
-
 
 API_KEY = "Yj@mb51"
 DB_FILE = "log.db"
@@ -359,17 +360,15 @@ def clear_duty_status_if_due():
 
 threading.Thread(target=clear_duty_status_if_due, daemon=True).start()
 
-
 @app.get("/set_webhook")
 def set_webhook():
     try:
         url = f"https://api.telegram.org/bot{settings['BOT_TOKEN']}/setWebhook"
-        webhook_url = "https://your-ngrok-or-domain/webhook"
+        webhook_url = "https://pids-alert-backend.onrender.com/telegram/webhook"  # ✅ your actual deployed webhook path
         res = requests.get(url, params={"url": webhook_url})
         return res.json()
     except Exception as e:
         return {"status": "error", "detail": str(e)}
-
 # ============== View Logs and Export to Excel ============
 @app.get("/view_logs")
 def view_logs():
