@@ -491,23 +491,33 @@ def get_grouping_chart(by: str = "section"):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ========== Linewalker Management ==========
+
+class LineWalkerItem(BaseModel):
+    start_ch: float
+    end_ch: float
+    line_walker: str
+
+# ✅ Return list of current linewalkers
 @app.get("/view_linewalkers")
 def view_linewalkers():
     return load_linewalkers()
 
+# ✅ Update linewalkers by receiving structured list
 @app.post("/edit_linewalkers")
-def edit_linewalkers(data: list):
+def edit_linewalkers(data: List[LineWalkerItem]):  # Optional: add `, auth=Depends(verify_api_key)`
     try:
-        save_linewalkers(data)
+        save_linewalkers([item.dict() for item in data])
         refresh_linewalkers()
         return {"status": "updated"}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
 
+# ✅ Refresh from file (optional utility endpoint)
 @app.get("/refresh_linewalkers")
 def refresh():
     refresh_linewalkers()
     return {"status": "refreshed"}
+
 
 @app.get("/ping")
 def ping():
