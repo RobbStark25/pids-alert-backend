@@ -426,17 +426,45 @@ def view_logs():
             ws3.append(list(row))
 
         wb.save(EXCEL_EXPORT_FILE)
-
-        print(f"[✓] Exported logs to {EXCEL_EXPORT_FILE}")
-
-        if platform.system() == "Windows":
-            os.startfile(EXCEL_EXPORT_FILE)
-        elif platform.system() == "Darwin":
-            subprocess.call(["open", EXCEL_EXPORT_FILE])
-        else:
-            subprocess.call(["xdg-open", EXCEL_EXPORT_FILE])
-
+        os.startfile(EXCEL_EXPORT_FILE)  # or subprocess on Mac/Linux
         return {"status": "opened_excel", "file": EXCEL_EXPORT_FILE}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/download_logs")
+def download_logs():
+    try:
+        # Reuse same code to generate Excel
+        conn = sqlite3.connect(DB_FILE)
+        df_recv = pd.read_sql("SELECT * FROM received_messages", conn)
+        df_duty = pd.read_sql("SELECT * FROM duty_status", conn)
+        df_sent = pd.read_sql("SELECT * FROM sent_logs", conn)
+        conn.close()
+
+        wb = openpyxl.Workbook()
+        ws1 = wb.active
+        ws1.title = "Received Logs"
+        ws1.append(df_recv.columns.tolist())
+        for row in df_recv.itertuples(index=False):
+            ws1.append(list(row))
+
+        ws2 = wb.create_sheet(title="Duty Status")
+        ws2.append(df_duty.columns.tolist())
+        for row in df_duty.itertuples(index=False):
+            ws2.append(list(row))
+
+        ws3 = wb.create_sheet(title="Sent Logs")
+        ws3.append(df_sent.columns.tolist())
+        for row in df_sent.itertuples(index=False):
+            ws3.append(list(row))
+
+        wb.save(EXCEL_EXPORT_FILE)
+
+        return FileResponse(
+            EXCEL_EXPORT_FILE,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            filename="PIDS_Log_Export.xlsx"
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
