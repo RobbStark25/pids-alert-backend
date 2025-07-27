@@ -21,7 +21,6 @@ from fastapi import Depends
 import csv
 from io import BytesIO
 from fastapi import APIRouter
-from config import settings 
 app = FastAPI()
 sent_count = 0
 
