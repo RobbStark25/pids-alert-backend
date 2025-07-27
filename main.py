@@ -134,16 +134,19 @@ for section, file in section_files.items():
 
 # ========== Interpolation ==========
 def interpolate_ch(df, od):
+    ch_matches = []
     for i in range(len(df) - 1):
         od1 = df.loc[i, "OD"]
+        od2 = df.loc[i + 1, "OD"]
         ch1 = df.loc[i, "CH"]
+        ch2 = df.loc[i + 1, "CH"]
         diff = df.loc[i, "Diff"]
-        if od1 <= od < df.loc[i + 1, "OD"]:
-            ch2 = df.loc[i + 1, "CH"]
+        if od1 <= od <= od2 and diff != 0:
             od_diff = od - od1
             ch = ch1 + ((ch2 - ch1) * od_diff / diff)
-            return round(ch, 3)
-    return None
+            ch_matches.append(round(ch, 3))
+    return ch_matches
+
 
 def interpolate_od(df, ch):
     for i in range(len(df) - 1):
@@ -165,16 +168,28 @@ def get_linewalker_by_ch(ch):
 # ========== Main API ==========
 @app.get("/calculate_ch_for_section")
 def calculate_ch_for_section(section: str, od: float):
+    print(f"[CH Lookup] Section={section}, OD={od}")
+    
     df = section_data.get(section)
     if df is None:
         return {"error": f"Section '{section}' not found."}
-    ch_val = interpolate_ch(df, od)
-    if ch_val is None:
-        return {"error": "OD out of range."}
-    lw = get_linewalker_by_ch(ch_val)
-    if not lw:
-        return {"error": "Line walker not found for CH."}
-    return {"ch": ch_val, "line_walker": lw}
+
+    ch_matches = interpolate_ch(df, od)
+
+    if len(ch_matches) > 1:
+        print(f"[Multiple CHs] Found: {ch_matches}")
+        return ch_matches
+
+    if len(ch_matches) == 1:
+        ch_val = ch_matches[0]
+        lw = get_linewalker_by_ch(ch_val)
+        if not lw:
+            return {"error": "Line walker not found for CH."}
+        return {"ch": ch_val, "line_walker": lw}
+
+    return {"error": "OD out of range."}
+
+
 
 @app.get("/convert/ch-to-od")
 def convert_ch_to_od(section: str, ch: float):
