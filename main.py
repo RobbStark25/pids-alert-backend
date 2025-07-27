@@ -247,11 +247,18 @@ def init_db():
     # Table: Received Messages
     c.execute('''
         CREATE TABLE IF NOT EXISTS received_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            linewalker TEXT,
-            message TEXT,
-            user TEXT
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Type TEXT,
+    OD TEXT,
+    CH TEXT,
+    Section TEXT,
+    LineWalker TEXT,
+    User TEXT,
+    Message TEXT,
+    Time TEXT,
+    Date TEXT
+)
+
         )
     ''')
 
