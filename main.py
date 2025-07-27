@@ -510,11 +510,10 @@ def refresh():
     refresh_linewalkers()
     return {"status": "refreshed"}
 
-@app.get("/")
-def root():
-    return {"message": "✅ PIDS Alert Backend is Running"}
-
 @app.get("/ping")
 def ping():
     return {"status": "ok"}
+@app.get("/")
+def root():
+    return {"message": "✅ PIDS Alert Backend is Running"}
 
