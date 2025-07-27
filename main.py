@@ -29,7 +29,7 @@ sent_count = 0
 API_KEY = "Yj@mb51"
 DB_FILE = "log.db"
 SETTINGS_FILE = "settings.json"
-EXCEL_EXPORT_FILE = "log_export.xlsx"
+EXCEL_EXPORT_FILE = "PIDS_Log_Export.xlsx"  # or a full path
 LINEWALKER_FILE = "linewalkers.json"
 
 settings = {}
@@ -407,6 +407,7 @@ def view_logs():
         df_sent = pd.read_sql("SELECT * FROM sent_logs", conn)
         conn.close()
 
+        # Create Excel file
         wb = openpyxl.Workbook()
         ws1 = wb.active
         ws1.title = "Received Logs"
@@ -426,6 +427,8 @@ def view_logs():
 
         wb.save(EXCEL_EXPORT_FILE)
 
+        print(f"[✓] Exported logs to {EXCEL_EXPORT_FILE}")
+
         if platform.system() == "Windows":
             os.startfile(EXCEL_EXPORT_FILE)
         elif platform.system() == "Darwin":
@@ -434,8 +437,10 @@ def view_logs():
             subprocess.call(["xdg-open", EXCEL_EXPORT_FILE])
 
         return {"status": "opened_excel", "file": EXCEL_EXPORT_FILE}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ================ Analytics Charts from SQLite ===============
 @app.get("/analytics/scatter_chart")
