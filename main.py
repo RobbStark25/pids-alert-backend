@@ -22,6 +22,10 @@ import csv
 from io import BytesIO
 from fastapi import APIRouter
 from typing import List
+from datetime import datetime, timedelta
+
+LINEWALKER_FILE = "linewalkers.json"
+RESET_DURATION_HOURS = 9
 
 app = FastAPI()
 sent_count = 0
@@ -565,13 +569,44 @@ def view_linewalkers():
 
 # ✅ Update linewalkers by receiving structured list
 @app.post("/edit_linewalkers")
-def edit_linewalkers(data: List[LineWalkerItem]):  # Optional: add `, auth=Depends(verify_api_key)`
-    try:
-        save_linewalkers([item.dict() for item in data])
-        refresh_linewalkers()
-        return {"status": "updated"}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
+
+def load_linewalkers():
+    if not os.path.exists(LINEWALKER_FILE):
+        return []
+
+    with open(LINEWALKER_FILE) as f:
+        data = json.load(f)
+
+    now = datetime.now()
+    updated = False
+
+    for item in data:
+        saved_time_str = item.get("saved_at")
+        if saved_time_str:
+            try:
+                saved_time = datetime.strptime(saved_time_str, "%Y-%m-%d %H:%M:%S")
+                if now - saved_time > timedelta(hours=RESET_DURATION_HOURS):
+                    item["line_walker"] = "-"
+                    item["saved_at"] = None
+                    updated = True
+            except Exception as e:
+                # Bad timestamp format? Skip resetting
+                print(f"Invalid saved_at format: {saved_time_str}. Skipping reset.")
+
+    # Only write back if anything changed
+    if updated:
+        with open(LINEWALKER_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+
+    return data
+
+def save_linewalkers(data):
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for item in data:
+        item["saved_at"] = now_str
+
+    with open(LINEWALKER_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
 
 # ✅ Refresh from file (optional utility endpoint)
 @app.get("/refresh_linewalkers")
