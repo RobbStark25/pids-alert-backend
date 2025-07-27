@@ -27,7 +27,7 @@ app = FastAPI()
 sent_count = 0
 
 API_KEY = "Yj@mb51"
-DB_FILE = "log.sqlite"
+DB_FILE = os.path.join(os.path.expanduser("~"), "Desktop", "log.sqlite")
 SETTINGS_FILE = "settings.json"
 EXCEL_EXPORT_FILE = "PIDS_Log_Export.xlsx"  # or a full path
 LINEWALKER_FILE = "linewalkers.json"
