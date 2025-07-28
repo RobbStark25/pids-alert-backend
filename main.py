@@ -14,6 +14,7 @@ import os
 import io
 import threading
 import time
+from fastapi import Body
 import subprocess
 import platform
 import openpyxl
@@ -577,19 +578,43 @@ def get_grouping_chart(by: str = "section"):
 
 # ========== Linewalker Management ==========
 
+
 class LineWalkerItem(BaseModel):
     start_ch: float
     end_ch: float
     line_walker: str
 
-# ✅ Return list of current linewalkers
+# ✅ View all linewalkers
 @app.get("/view_linewalkers")
 def view_linewalkers():
     return load_linewalkers()
 
-# ✅ Update linewalkers by receiving structured list
+# ✅ Update linewalkers via frontend
 @app.post("/edit_linewalkers")
+def edit_linewalkers(data: list[LineWalkerItem]):
+    try:
+        # Convert to dict list
+        data_dicts = [item.dict() for item in data]
+        save_linewalkers(data_dicts)
 
+        # 🔁 Update in-memory variable if used
+        global linewalker_data
+        linewalker_data = data_dicts
+
+        return {"status": "updated"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+# ✅ Save linewalkers to file
+def save_linewalkers(data):
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for item in data:
+        item["saved_at"] = now_str
+
+    with open(LINEWALKER_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+# ✅ Load and auto-expire linewalkers
 def load_linewalkers():
     if not os.path.exists(LINEWALKER_FILE):
         return []
@@ -610,30 +635,19 @@ def load_linewalkers():
                     item["saved_at"] = None
                     updated = True
             except Exception as e:
-                # Bad timestamp format? Skip resetting
                 print(f"Invalid saved_at format: {saved_time_str}. Skipping reset.")
 
-    # Only write back if anything changed
     if updated:
         with open(LINEWALKER_FILE, "w") as f:
             json.dump(data, f, indent=2)
 
     return data
 
-def save_linewalkers(data):
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for item in data:
-        item["saved_at"] = now_str
-
-    with open(LINEWALKER_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
-
-# ✅ Refresh from file (optional utility endpoint)
+# Optional refresh endpoint
 @app.get("/refresh_linewalkers")
-def refresh():
-    refresh_linewalkers()
-    return {"status": "refreshed"}
-
+def refresh_linewalkers_api():
+    refreshed = load_linewalkers()
+    return {"status": "refreshed", "count": len(refreshed)}
 
 
 @app.get("/ping")
