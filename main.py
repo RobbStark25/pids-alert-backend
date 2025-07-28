@@ -649,6 +649,27 @@ def refresh_linewalkers_api():
     refreshed = load_linewalkers()
     return {"status": "refreshed", "count": len(refreshed)}
 
+@app.post("/reset_all_linewalkers")
+def reset_all_linewalkers():
+    if not os.path.exists(LINEWALKER_FILE):
+        return {"status": "file_not_found"}
+
+    with open(LINEWALKER_FILE, "r") as f:
+        data = json.load(f)
+
+    for item in data:
+        item["line_walker"] = "-"
+        item["saved_at"] = None
+
+    with open(LINEWALKER_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+    # update global variable if used
+    global linewalker_data
+    linewalker_data = data
+
+    return {"status": "reset", "count": len(data)}
+
 
 @app.get("/ping")
 def ping():
