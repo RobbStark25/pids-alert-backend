@@ -145,8 +145,7 @@ def interpolate_ch(df, od):
             od_diff = od - od1
             ch = ch1 + ((ch2 - ch1) * od_diff / diff)
             ch_matches.append(round(ch, 3))
-    return ch_matches
-
+    return ch_matches  # Always returns a list
 
 def interpolate_od(df, ch):
     for i in range(len(df) - 1):
@@ -176,30 +175,24 @@ def calculate_ch_for_section(section: str, od: float):
 
     ch_matches = interpolate_ch(df, od)
 
-    if ch_matches is None:
-        return {"error": "OD out of range."}
+    if not ch_matches:
+        return {"error": "OD out of range or no valid interpolation found."}
 
-    # If interpolate_ch returns a single float
-    if isinstance(ch_matches, float) or isinstance(ch_matches, int):
-        lw = get_linewalker_by_ch(ch_matches)
-        if not lw:
-            return {"error": "Line walker not found for CH."}
-        return {"ch": round(ch_matches, 3), "line_walker": lw}
-
-    # If interpolate_ch returns a list of CHs
-    if isinstance(ch_matches, list) and len(ch_matches) > 1:
+    # ✅ Multiple CHs — return list directly
+    if len(ch_matches) > 1:
         print(f"[Multiple CHs] Found: {ch_matches}")
         return ch_matches
 
-    # If it's a list with one item
-    if isinstance(ch_matches, list) and len(ch_matches) == 1:
-        ch_val = ch_matches[0]
-        lw = get_linewalker_by_ch(ch_val)
-        if not lw:
-            return {"error": "Line walker not found for CH."}
-        return {"ch": ch_val, "line_walker": lw}
-
-    return {"error": "Unexpected result from interpolation."}
+    # ✅ Single CH — return with linewalker
+    ch_val = ch_matches[0]
+    lw = get_linewalker_by_ch(ch_val)
+    if not lw:
+        return {"error": "Line walker not found for CH."}
+    
+    return {
+        "ch": ch_val,
+        "line_walker": lw
+    }
 
 
 
