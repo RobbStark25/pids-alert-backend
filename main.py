@@ -115,22 +115,45 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-MASTER_CSV_FILE = "OD_CH Master.csv"
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS  # Used in PyInstaller .exe
+    except Exception:
+        base_path = os.path.abspath(".")  # Normal run
+    return os.path.join(base_path, relative_path)
+# Mapping of sections to corresponding CSV files with full desktop path
+base_path = os.path.expanduser("~/Desktop")
+master_csv = os.path.join(base_path, "OD_CH Master.csv")
+
 section_data = {}
+if master_csv:
+    try:
+        # 🛡️ Try UTF-8 first, fallback to Latin1 if needed
+        try:
+            df_master = pd.read_csv(master_csv, encoding="utf-8")
+        except UnicodeDecodeError:
+            df_master = pd.read_csv(master_csv, encoding="latin1")
 
-try:
-    df_master = pd.read_csv(MASTER_CSV_FILE)
-    df_master = df_master.dropna(subset=["OD", "CH", "Section"])
-    df_master = df_master.sort_values(["Section", "OD"])
+        # 🧹 Ensure all required columns are present and clean
+        required_cols = {"OD", "CH", "Section", "Diff"}
+        if not required_cols.issubset(set(df_master.columns)):
+            raise ValueError(f"Missing columns: {required_cols - set(df_master.columns)}")
 
-    for section in df_master["Section"].unique():
-        df_section = df_master[df_master["Section"] == section].copy()
-        df_section = df_section.sort_values("OD").reset_index(drop=True)
-        df_section["Diff"] = df_section["OD"].diff().fillna(0)
-        section_data[section] = df_section
+        df_master = df_master.dropna(subset=required_cols)
+        df_master = df_master.sort_values(["Section", "OD"])
 
-except Exception as e:
-    print(f"Error loading master CSV file: {e}")
+        # 📊 Split into per-section DataFrames
+        for section in df_master["Section"].unique():
+            df_section = df_master[df_master["Section"] == section].copy()
+            df_section = df_section.sort_values("OD").reset_index(drop=True)
+            section_data[section] = df_section
+
+        print(f"✅ Loaded sections: {list(section_data.keys())}")
+
+    except Exception as e:
+        print(f"❌ Error loading master CSV file: {e}")
+else:
+    print("⚠️ No file selected.")
 # ========== Interpolation ==========
 def interpolate_ch(df, od):
     ch_matches = []
