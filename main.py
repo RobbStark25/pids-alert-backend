@@ -115,24 +115,22 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-section_files = {
-    "IPS to SV-08": "OD_CH_1.csv",
-    "SV-09 to SV-08": "OD_CH_2.csv",
-    "SV-09 to SV-10": "OD_CH_3.csv",
-    "SV-11 to SV-10": "OD_CH_4.csv",
-    "SV-11 to KRS": "OD_CH_5.csv"
-}
+MASTER_CSV_FILE = "OD_CH Master.csv"
 section_data = {}
-for section, file in section_files.items():
-    try:
-        df = pd.read_csv(file)
-        df = df.dropna(subset=["OD", "CH"])
-        df = df.sort_values("OD")
-        df["Diff"] = df["OD"].diff().fillna(0)
-        section_data[section] = df.reset_index(drop=True)
-    except Exception as e:
-        print(f"Error loading {file} for section {section}: {e}")
 
+try:
+    df_master = pd.read_csv(MASTER_CSV_FILE)
+    df_master = df_master.dropna(subset=["OD", "CH", "Section"])
+    df_master = df_master.sort_values(["Section", "OD"])
+
+    for section in df_master["Section"].unique():
+        df_section = df_master[df_master["Section"] == section].copy()
+        df_section = df_section.sort_values("OD").reset_index(drop=True)
+        df_section["Diff"] = df_section["OD"].diff().fillna(0)
+        section_data[section] = df_section
+
+except Exception as e:
+    print(f"Error loading master CSV file: {e}")
 # ========== Interpolation ==========
 def interpolate_ch(df, od):
     ch_matches = []
