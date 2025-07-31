@@ -115,45 +115,23 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS  # Used in PyInstaller .exe
-    except Exception:
-        base_path = os.path.abspath(".")  # Normal run
-    return os.path.join(base_path, relative_path)
-# Mapping of sections to corresponding CSV files with full desktop path
-base_path = os.path.expanduser("~/Desktop")
-master_csv = os.path.join(base_path, "OD_CH Master.csv")
-
+section_files = {
+    "IPS to SV-08": "OD_CH_1.csv",
+    "SV-09 to SV-08": "OD_CH_2.csv",
+    "SV-09 to SV-10": "OD_CH_3.csv",
+    "SV-11 to SV-10": "OD_CH_4.csv",
+    "SV-11 to KRS": "OD_CH_5.csv"
+}
 section_data = {}
-if master_csv:
+for section, file in section_files.items():
     try:
-        # 🛡️ Try UTF-8 first, fallback to Latin1 if needed
-        try:
-            df_master = pd.read_csv(master_csv, encoding="utf-8")
-        except UnicodeDecodeError:
-            df_master = pd.read_csv(master_csv, encoding="latin1")
-
-        # 🧹 Ensure all required columns are present and clean
-        required_cols = {"OD", "CH", "Section", "Diff"}
-        if not required_cols.issubset(set(df_master.columns)):
-            raise ValueError(f"Missing columns: {required_cols - set(df_master.columns)}")
-
-        df_master = df_master.dropna(subset=required_cols)
-        df_master = df_master.sort_values(["Section", "OD"])
-
-        # 📊 Split into per-section DataFrames
-        for section in df_master["Section"].unique():
-            df_section = df_master[df_master["Section"] == section].copy()
-            df_section = df_section.sort_values("OD").reset_index(drop=True)
-            section_data[section] = df_section
-
-        print(f"✅ Loaded sections: {list(section_data.keys())}")
-
+        df = pd.read_csv(file)
+        df = df.dropna(subset=["OD", "CH"])
+        df = df.sort_values("OD")
+        df["Diff"] = df["OD"].diff().fillna(0)
+        section_data[section] = df.reset_index(drop=True)
     except Exception as e:
-        print(f"❌ Error loading master CSV file: {e}")
-else:
-    print("⚠️ No file selected.")
+        print(f"Error loading {file} for section {section}: {e}")
 # ========== Interpolation ==========
 def interpolate_ch(df, od):
     ch_matches = []
