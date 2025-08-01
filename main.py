@@ -149,6 +149,26 @@ try:
 except Exception as e:
     print(f"[❌] Failed to load OD-CH master file: {e}")
 
+section_data = {}
+
+def load_od_ch_master():
+    global section_data
+    df = pd.read_csv("OD_CH Master.csv")  # Ensure this path is correct
+    df = df.dropna(subset=["Section", "OD", "CH"])
+    grouped = df.groupby("Section")
+
+    for section, group_df in grouped:
+        group_df = group_df.sort_values("OD").reset_index(drop=True)
+        group_df["Diff"] = group_df["OD"].diff().fillna(0)
+        section_data[section] = group_df
+
+# Call this at startup
+load_od_ch_master()
+
+@app.get("/sections")
+def get_sections():
+    return list(section_data.keys())
+
 
 # ========== Interpolation ==========
 def interpolate_ch(df, od):
@@ -695,6 +715,4 @@ def ping():
 def root():
     return {"message": "✅ PIDS Alert Backend is Running"}
 
-@app.get("/sections")
-def list_sections():
-    return list(section_data.keys())
+
