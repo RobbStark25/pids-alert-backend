@@ -115,32 +115,40 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-# ✅ Dynamic path to user's Desktop
-desktop_path = os.path.join(os.path.expanduser("~"), "Desktop", "OD_CH Master.csv")
+import os
+import pandas as pd
+from fastapi import FastAPI
+
+app = FastAPI()
+
+# ========== Section Data ==========
+
+# ✅ Use relative path (Render-compatible)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MASTER_CSV = os.path.join(BASE_DIR, "OD_CH Master.csv")
 
 # 🔁 Section storage
 section_data = {}
 
-# 🧠 Load and parse the master file
 def load_od_ch_master():
     global section_data
-    section_data = {}
+    section_data = {}  # Clear old data
 
     try:
-        df = pd.read_csv(desktop_path)
+        df = pd.read_csv(MASTER_CSV)
 
-        # 🧼 Strip whitespace from headers and section names
+        # 🧼 Clean headers and values
         df.columns = df.columns.str.strip()
         df["Section"] = df["Section"].astype(str).str.strip()
 
-        # 🧮 Ensure OD, CH, Diff are numeric
+        # 🧮 Type conversion and drop NA
         df = df.dropna(subset=["Section", "OD", "CH"])
         df["OD"] = pd.to_numeric(df["OD"], errors="coerce")
         df["CH"] = pd.to_numeric(df["CH"], errors="coerce")
         df["Diff"] = df["OD"].diff().fillna(0)
         df = df.dropna(subset=["OD", "CH", "Diff"])
 
-        # 🔁 Group by Section and store
+        # 📊 Group and store section-wise
         for section, group_df in df.groupby("Section"):
             group_df = group_df.sort_values("OD").reset_index(drop=True)
             if len(group_df) < 2:
@@ -151,44 +159,15 @@ def load_od_ch_master():
         print(f"[✔] Loaded sections: {list(section_data.keys())}")
 
     except Exception as e:
-        print(f"[❌] Failed to load OD_CH Master.csv from Desktop: {e}")
+        print(f"[❌] Failed to load OD-CH Master.csv from project directory: {e}")
 
-# ⏩ Load at startup
+# ⏩ Load once at startup
 load_od_ch_master()
 
-
-
-# ========== Interpolation ==========
-def interpolate_ch(df, od):
-    ch_matches = []
-    for i in range(len(df) - 1):
-        od1 = df.loc[i, "OD"]
-        od2 = df.loc[i + 1, "OD"]
-        ch1 = df.loc[i, "CH"]
-        ch2 = df.loc[i + 1, "CH"]
-        diff = df.loc[i, "Diff"]
-        if od1 <= od <= od2 and diff != 0:
-            od_diff = od - od1
-            ch = ch1 + ((ch2 - ch1) * od_diff / diff)
-            ch_matches.append(round(ch, 3))
-    return ch_matches  # Always returns a list
-
-def interpolate_od(df, ch):
-    for i in range(len(df) - 1):
-        ch1 = df.loc[i, "CH"]
-        ch2 = df.loc[i + 1, "CH"]
-        od1 = df.loc[i, "OD"]
-        od2 = df.loc[i + 1, "OD"]
-        if ch1 <= ch <= ch2:
-            interpolated = od1 + ((ch - ch1) * (od2 - od1)) / (ch2 - ch1)
-            return round(interpolated)
-    return None
-
-def get_linewalker_by_ch(ch):
-    for entry in linewalker_data:
-        if entry["start_ch"] <= ch <= entry["end_ch"]:
-            return entry["line_walker"]
-    return None
+# 🔗 API to return list of sections
+@app.get("/sections")
+def get_sections():
+    return list(section_data.keys())
 
 # ========== Main API ==========
 @app.get("/calculate_ch_for_section")
@@ -703,8 +682,5 @@ def ping():
 def root():
     return {"message": "✅ PIDS Alert Backend is Running"}
 
-# 🔗 API Endpoint: List available sections
-@app.get("/sections")
-def get_sections():
-    return list(section_data.keys())
+
 
