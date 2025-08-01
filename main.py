@@ -115,13 +115,6 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-import os
-import pandas as pd
-from fastapi import FastAPI
-
-app = FastAPI()
-
-# ========== Section Data ==========
 
 # ✅ Use relative path (Render-compatible)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
