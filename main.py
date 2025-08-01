@@ -115,19 +115,33 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
+# ========== Section Data ==========
 MASTER_CSV = "OD_CH Master.csv"
 section_data = {}
 
 try:
     df_master = pd.read_csv(MASTER_CSV)
+
+    # ✅ Strip column names and values to avoid space issues
+    df_master.columns = df_master.columns.str.strip()
+    df_master["Section"] = df_master["Section"].astype(str).str.strip()
+
+    # ✅ Ensure numeric conversion
     df_master = df_master.dropna(subset=["Section", "OD", "CH", "Diff"])
-    df_master["OD"] = df_master["OD"].astype(float)
-    df_master["CH"] = df_master["CH"].astype(float)
-    df_master["Diff"] = df_master["Diff"].astype(float)
+    df_master["OD"] = pd.to_numeric(df_master["OD"], errors="coerce")
+    df_master["CH"] = pd.to_numeric(df_master["CH"], errors="coerce")
+    df_master["Diff"] = pd.to_numeric(df_master["Diff"], errors="coerce")
+
+    df_master = df_master.dropna(subset=["OD", "CH", "Diff"])
 
     for section in df_master["Section"].unique():
         df_section = df_master[df_master["Section"] == section].copy()
         df_section = df_section.sort_values("OD").reset_index(drop=True)
+
+        if df_section.empty or len(df_section) < 2:
+            print(f"⚠ Incomplete data for {section}.")
+            continue
+
         section_data[section] = df_section
 
     print(f"[✔] Loaded sections from master file: {list(section_data.keys())}")
