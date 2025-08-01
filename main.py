@@ -115,60 +115,51 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-# ========== Section Data ==========
-MASTER_CSV = "OD_CH Master.csv"
-section_data = {}
 
-try:
-    df_master = pd.read_csv(MASTER_CSV)
+# ✅ Get Desktop path dynamically
+desktop_path = os.path.join(os.path.expanduser("~"), "Desktop", "OD_CH Master.csv")
 
-    # ✅ Strip column names and values to avoid space issues
-    df_master.columns = df_master.columns.str.strip()
-    df_master["Section"] = df_master["Section"].astype(str).str.strip()
-
-    # ✅ Ensure numeric conversion
-    df_master = df_master.dropna(subset=["Section", "OD", "CH", "Diff"])
-    df_master["OD"] = pd.to_numeric(df_master["OD"], errors="coerce")
-    df_master["CH"] = pd.to_numeric(df_master["CH"], errors="coerce")
-    df_master["Diff"] = pd.to_numeric(df_master["Diff"], errors="coerce")
-
-    df_master = df_master.dropna(subset=["OD", "CH", "Diff"])
-
-    for section in df_master["Section"].unique():
-        df_section = df_master[df_master["Section"] == section].copy()
-        df_section = df_section.sort_values("OD").reset_index(drop=True)
-
-        if df_section.empty or len(df_section) < 2:
-            print(f"⚠ Incomplete data for {section}.")
-            continue
-
-        section_data[section] = df_section
-
-    print(f"[✔] Loaded sections from master file: {list(section_data.keys())}")
-
-except Exception as e:
-    print(f"[❌] Failed to load OD-CH master file: {e}")
-
+# 🔁 Section storage
 section_data = {}
 
 def load_od_ch_master():
     global section_data
-    df = pd.read_csv("OD_CH Master.csv")  # Ensure this path is correct
-    df = df.dropna(subset=["Section", "OD", "CH"])
-    grouped = df.groupby("Section")
+    section_data = {}  # Clear old data
 
-    for section, group_df in grouped:
-        group_df = group_df.sort_values("OD").reset_index(drop=True)
-        group_df["Diff"] = group_df["OD"].diff().fillna(0)
-        section_data[section] = group_df
+    try:
+        df = pd.read_csv(desktop_path)
 
-# Call this at startup
+        # 🧼 Clean headers and values
+        df.columns = df.columns.str.strip()
+        df["Section"] = df["Section"].astype(str).str.strip()
+
+        # 🧮 Type conversion and drop NA
+        df = df.dropna(subset=["Section", "OD", "CH"])
+        df["OD"] = pd.to_numeric(df["OD"], errors="coerce")
+        df["CH"] = pd.to_numeric(df["CH"], errors="coerce")
+        df["Diff"] = df["OD"].diff().fillna(0)
+        df = df.dropna(subset=["OD", "CH", "Diff"])
+
+        # 📊 Group and store section-wise
+        for section, group_df in df.groupby("Section"):
+            group_df = group_df.sort_values("OD").reset_index(drop=True)
+            if len(group_df) < 2:
+                print(f"⚠️ Incomplete data for {section}")
+                continue
+            section_data[section] = group_df
+
+        print(f"[✔] Loaded sections: {list(section_data.keys())}")
+
+    except Exception as e:
+        print(f"[❌] Failed to load OD-CH Master.csv from Desktop: {e}")
+
+# ⏩ Load once at startup
 load_od_ch_master()
 
+# 🔗 API to return list of sections
 @app.get("/sections")
 def get_sections():
     return list(section_data.keys())
-
 
 # ========== Interpolation ==========
 def interpolate_ch(df, od):
