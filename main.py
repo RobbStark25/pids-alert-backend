@@ -156,10 +156,6 @@ def load_od_ch_master():
 # ⏩ Load at startup
 load_od_ch_master()
 
-# 🔗 API Endpoint: List available sections
-@app.get("/sections")
-def get_sections():
-    return list(section_data.keys())
 
 
 # ========== Interpolation ==========
@@ -707,4 +703,8 @@ def ping():
 def root():
     return {"message": "✅ PIDS Alert Backend is Running"}
 
+# 🔗 API Endpoint: List available sections
+@app.get("/sections")
+def get_sections():
+    return list(section_data.keys())
 
