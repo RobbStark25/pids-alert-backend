@@ -115,23 +115,27 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-section_files = {
-    "IPS to SV-08": "OD_CH_1.csv",
-    "SV-09 to SV-08": "OD_CH_2.csv",
-    "SV-09 to SV-10": "OD_CH_3.csv",
-    "SV-11 to SV-10": "OD_CH_4.csv",
-    "SV-11 to KRS": "OD_CH_5.csv"
-}
+MASTER_CSV = "OD_CH Master.csv"
 section_data = {}
-for section, file in section_files.items():
-    try:
-        df = pd.read_csv(file)
-        df = df.dropna(subset=["OD", "CH"])
-        df = df.sort_values("OD")
-        df["Diff"] = df["OD"].diff().fillna(0)
-        section_data[section] = df.reset_index(drop=True)
-    except Exception as e:
-        print(f"Error loading {file} for section {section}: {e}")
+
+try:
+    df_master = pd.read_csv(MASTER_CSV)
+    df_master = df_master.dropna(subset=["Section", "OD", "CH", "Diff"])
+    df_master["OD"] = df_master["OD"].astype(float)
+    df_master["CH"] = df_master["CH"].astype(float)
+    df_master["Diff"] = df_master["Diff"].astype(float)
+
+    for section in df_master["Section"].unique():
+        df_section = df_master[df_master["Section"] == section].copy()
+        df_section = df_section.sort_values("OD").reset_index(drop=True)
+        section_data[section] = df_section
+
+    print(f"[✔] Loaded sections from master file: {list(section_data.keys())}")
+
+except Exception as e:
+    print(f"[❌] Failed to load OD-CH master file: {e}")
+
+
 # ========== Interpolation ==========
 def interpolate_ch(df, od):
     ch_matches = []
@@ -677,3 +681,6 @@ def ping():
 def root():
     return {"message": "✅ PIDS Alert Backend is Running"}
 
+@app.get("/sections")
+def list_sections():
+    return list(section_data.keys())
