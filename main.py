@@ -163,52 +163,90 @@ def get_sections():
     return list(section_data.keys())
 
 # ========== Main API ==========
+def interpolate_ch(df, od):
+    matches = []
+
+    for i in range(len(df) - 1):
+        od1 = df.loc[i, "OD"]
+        od2 = df.loc[i + 1, "OD"]
+        ch1 = df.loc[i, "CH"]
+        ch2 = df.loc[i + 1, "CH"]
+
+        # Match if OD is between OD1 and OD2 (inclusive range)
+        if min(od1, od2) <= od <= max(od1, od2):
+            diff = od2 - od1 if od2 != od1 else 1  # avoid zero division
+            ch = ch1 + ((ch2 - ch1) * (od - od1) / diff)
+            matches.append(round(ch, 3))
+            break  # typically one match is expected
+
+    return matches  # returns a list (empty if no match)
+
+
 @app.get("/calculate_ch_for_section")
 def calculate_ch_for_section(section: str, od: float):
     print(f"[CH Lookup] Section={section}, OD={od}")
 
-    df = section_data.get(section)
-    if df is None:
-        return {"error": f"Section '{section}' not found."}
+    try:
+        df = section_data.get(section)
+        if df is None:
+            msg = f"Section '{section}' not found."
+            print(f"[❌] {msg}")
+            return JSONResponse(content={"error": msg}, status_code=404)
 
-    ch_matches = interpolate_ch(df, od)
+        ch_matches = interpolate_ch(df, od)
 
-    if not ch_matches:
-        return {"error": "OD out of range or no valid interpolation found."}
+        if not ch_matches:
+            msg = f"OD {od} out of range or no valid interpolation found in section {section}."
+            print(f"[⚠️] {msg}")
+            return JSONResponse(content={"error": msg}, status_code=400)
 
-    # ✅ Multiple CHs — return list directly
-    if len(ch_matches) > 1:
-        print(f"[Multiple CHs] Found: {ch_matches}")
-        return ch_matches
+        if len(ch_matches) > 1:
+            print(f"[ℹ️] Multiple CH matches found: {ch_matches}")
+            return JSONResponse(content={"matches": ch_matches}, status_code=200)
 
-    # ✅ Single CH — return with linewalker
-    ch_val = ch_matches[0]
-    lw = get_linewalker_by_ch(ch_val)
-    if not lw:
-        return {"error": "Line walker not found for CH."}
-    
-    return {
-        "ch": ch_val,
-        "line_walker": lw
-    }
+        ch_val = ch_matches[0]
+        lw = get_linewalker_by_ch(ch_val)
+
+        if not lw:
+            msg = f"Line walker not found for CH {ch_val}."
+            print(f"[⚠️] {msg}")
+            return JSONResponse(content={"error": msg}, status_code=404)
+
+        return {
+            "ch": ch_val,
+            "line_walker": lw
+        }
+
+    except Exception as e:
+        print(f"[❌ Exception] {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 
 
 @app.get("/convert/ch-to-od")
 def convert_ch_to_od(section: str, ch: float):
-    df = section_data.get(section)
-    if df is None:
-        return {"error": f"Section '{section}' not found."}
-    od = interpolate_od(df, ch)
-    if od is None:
-        return {"error": "CH out of range."}
-    return {"od": od}
+    print(f"[OD Lookup] Section={section}, CH={ch}")
 
-class AlertPayload(BaseModel):
-    od: float
-    ch: float
-    section: str
-    line_walker: str
+    try:
+        df = section_data.get(section)
+        if df is None:
+            msg = f"Section '{section}' not found."
+            print(f"[❌] {msg}")
+            return JSONResponse(content={"error": msg}, status_code=404)
+
+        od = interpolate_od(df, ch)
+        if od is None:
+            msg = f"CH {ch} out of range or interpolation failed."
+            print(f"[⚠️] {msg}")
+            return JSONResponse(content={"error": msg}, status_code=400)
+
+        return {"od": od}
+
+    except Exception as e:
+        print(f"[❌ Exception] {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 @app.post("/send_alert")
 def send_alert(payload: AlertPayload):
