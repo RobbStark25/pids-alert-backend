@@ -115,138 +115,103 @@ def refresh_linewalkers():
 linewalker_data = load_linewalkers()
 
 # ========== Section Data ==========
-
-# ✅ Use relative path (Render-compatible)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MASTER_CSV = os.path.join(BASE_DIR, "OD_CH Master.csv")
-
-# 🔁 Section storage
+section_files = {
+    "IPS to SV-08": "OD_CH_1.csv",
+    "SV-09 to SV-08": "OD_CH_2.csv",
+    "SV-09 to SV-10": "OD_CH_3.csv",
+    "SV-11 to SV-10": "OD_CH_4.csv",
+    "SV-11 to KRS": "OD_CH_5.csv"
+}
 section_data = {}
-
-def load_od_ch_master():
-    global section_data
-    section_data = {}  # Clear old data
-
+for section, file in section_files.items():
     try:
-        df = pd.read_csv(MASTER_CSV)
-
-        # 🧼 Clean headers and values
-        df.columns = df.columns.str.strip()
-        df["Section"] = df["Section"].astype(str).str.strip()
-
-        # 🧮 Type conversion and drop NA
-        df = df.dropna(subset=["Section", "OD", "CH"])
-        df["OD"] = pd.to_numeric(df["OD"], errors="coerce")
-        df["CH"] = pd.to_numeric(df["CH"], errors="coerce")
+        df = pd.read_csv(file)
+        df = df.dropna(subset=["OD", "CH"])
+        df = df.sort_values("OD")
         df["Diff"] = df["OD"].diff().fillna(0)
-        df = df.dropna(subset=["OD", "CH", "Diff"])
-
-        # 📊 Group and store section-wise
-        for section, group_df in df.groupby("Section"):
-            group_df = group_df.sort_values("OD").reset_index(drop=True)
-            if len(group_df) < 2:
-                print(f"⚠️ Incomplete data for {section}")
-                continue
-            section_data[section] = group_df
-
-        print(f"[✔] Loaded sections: {list(section_data.keys())}")
-
+        section_data[section] = df.reset_index(drop=True)
     except Exception as e:
-        print(f"[❌] Failed to load OD-CH Master.csv from project directory: {e}")
+        print(f"Error loading {file} for section {section}: {e}")
 
-# ⏩ Load once at startup
-load_od_ch_master()
-
-# 🔗 API to return list of sections
-@app.get("/sections")
-def get_sections():
-    return list(section_data.keys())
-
-# ========== Main API ==========
+# ========== Interpolation ==========
 def interpolate_ch(df, od):
-    matches = []
-
+    ch_matches = []
     for i in range(len(df) - 1):
         od1 = df.loc[i, "OD"]
         od2 = df.loc[i + 1, "OD"]
         ch1 = df.loc[i, "CH"]
         ch2 = df.loc[i + 1, "CH"]
+        diff = df.loc[i, "Diff"]
+        if od1 <= od <= od2 and diff != 0:
+            od_diff = od - od1
+            ch = ch1 + ((ch2 - ch1) * od_diff / diff)
+            ch_matches.append(round(ch, 3))
+    return ch_matches  # Always returns a list
 
-        # Match if OD is between OD1 and OD2 (inclusive range)
-        if min(od1, od2) <= od <= max(od1, od2):
-            diff = od2 - od1 if od2 != od1 else 1  # avoid zero division
-            ch = ch1 + ((ch2 - ch1) * (od - od1) / diff)
-            matches.append(round(ch, 3))
-            break  # typically one match is expected
+def interpolate_od(df, ch):
+    for i in range(len(df) - 1):
+        ch1 = df.loc[i, "CH"]
+        ch2 = df.loc[i + 1, "CH"]
+        od1 = df.loc[i, "OD"]
+        od2 = df.loc[i + 1, "OD"]
+        if ch1 <= ch <= ch2:
+            interpolated = od1 + ((ch - ch1) * (od2 - od1)) / (ch2 - ch1)
+            return round(interpolated)
+    return None
 
-    return matches  # returns a list (empty if no match)
+def get_linewalker_by_ch(ch):
+    for entry in linewalker_data:
+        if entry["start_ch"] <= ch <= entry["end_ch"]:
+            return entry["line_walker"]
+    return None
 
-
+# ========== Main API ==========
 @app.get("/calculate_ch_for_section")
 def calculate_ch_for_section(section: str, od: float):
     print(f"[CH Lookup] Section={section}, OD={od}")
 
-    try:
-        df = section_data.get(section)
-        if df is None:
-            msg = f"Section '{section}' not found."
-            print(f"[❌] {msg}")
-            return JSONResponse(content={"error": msg}, status_code=404)
+    df = section_data.get(section)
+    if df is None:
+        return {"error": f"Section '{section}' not found."}
 
-        ch_matches = interpolate_ch(df, od)
+    ch_matches = interpolate_ch(df, od)
 
-        if not ch_matches:
-            msg = f"OD {od} out of range or no valid interpolation found in section {section}."
-            print(f"[⚠️] {msg}")
-            return JSONResponse(content={"error": msg}, status_code=400)
+    if not ch_matches:
+        return {"error": "OD out of range or no valid interpolation found."}
 
-        if len(ch_matches) > 1:
-            print(f"[ℹ️] Multiple CH matches found: {ch_matches}")
-            return JSONResponse(content={"matches": ch_matches}, status_code=200)
+    # ✅ Multiple CHs — return list directly
+    if len(ch_matches) > 1:
+        print(f"[Multiple CHs] Found: {ch_matches}")
+        return ch_matches
 
-        ch_val = ch_matches[0]
-        lw = get_linewalker_by_ch(ch_val)
-
-        if not lw:
-            msg = f"Line walker not found for CH {ch_val}."
-            print(f"[⚠️] {msg}")
-            return JSONResponse(content={"error": msg}, status_code=404)
-
-        return {
-            "ch": ch_val,
-            "line_walker": lw
-        }
-
-    except Exception as e:
-        print(f"[❌ Exception] {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-
+    # ✅ Single CH — return with linewalker
+    ch_val = ch_matches[0]
+    lw = get_linewalker_by_ch(ch_val)
+    if not lw:
+        return {"error": "Line walker not found for CH."}
+    
+    return {
+        "ch": ch_val,
+        "line_walker": lw
+    }
 
 
 
 @app.get("/convert/ch-to-od")
 def convert_ch_to_od(section: str, ch: float):
-    print(f"[OD Lookup] Section={section}, CH={ch}")
+    df = section_data.get(section)
+    if df is None:
+        return {"error": f"Section '{section}' not found."}
+    od = interpolate_od(df, ch)
+    if od is None:
+        return {"error": "CH out of range."}
+    return {"od": od}
 
-    try:
-        df = section_data.get(section)
-        if df is None:
-            msg = f"Section '{section}' not found."
-            print(f"[❌] {msg}")
-            return JSONResponse(content={"error": msg}, status_code=404)
-
-        od = interpolate_od(df, ch)
-        if od is None:
-            msg = f"CH {ch} out of range or interpolation failed."
-            print(f"[⚠️] {msg}")
-            return JSONResponse(content={"error": msg}, status_code=400)
-
-        return {"od": od}
-
-    except Exception as e:
-        print(f"[❌ Exception] {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-
+class AlertPayload(BaseModel):
+    od: float
+    ch: float
+    section: str
+    line_walker: str
 
 @app.post("/send_alert")
 def send_alert(payload: AlertPayload):
@@ -712,6 +677,4 @@ def ping():
 @app.get("/")
 def root():
     return {"message": "✅ PIDS Alert Backend is Running"}
-
-
 
